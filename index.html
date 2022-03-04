@@ -1,0 +1,344 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8">
+    <link href="https://fonts.googleapis.com/css?family=Roboto:100,300,400,500,700,900" rel="stylesheet">
+    <link href="https://cdn.jsdelivr.net/npm/@mdi/font@4.x/css/materialdesignicons.min.css" rel="stylesheet">
+    <link href="https://cdn.jsdelivr.net/npm/vuetify@2.x/dist/vuetify.min.css" rel="stylesheet">
+    <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, minimal-ui">
+    <style>
+      .v-card--reveal {
+          bottom: 0;
+          opacity: 1 !important;
+          position: absolute;
+          width: 100%;
+      }
+      @media only screen and (min-height: 600px) {
+          #main-card {
+              position: absolute;
+              top: 40vh;
+              left: 50vw;
+              transform: translate(-50%,-50%);
+          }
+      }
+    </style>
+  </head>
+  <body>
+    <div id="app">
+      <v-app>
+        <v-main>
+
+          <v-card
+            id="main-card"
+            class="mx-auto"
+            width="360"
+            >
+            <v-card-title>Download your data</v-card-title>
+
+            <v-card-text>
+              <v-text-field
+                v-model="token"
+                :append-icon="show_token ? 'mdi-eye' : 'mdi-eye-off'"
+                :type="show_token ? 'text' : 'password'"
+                dense hide-details
+                label="Personal Access Token"
+                hint="See below for instructions"
+                @change="save_values"
+                @click:append="show_token = !show_token"
+                ></v-text-field>
+
+              <v-checkbox
+                v-model="remember_token"
+                label="remember token on this device"
+                @click="save_values"
+                dense hide-details
+                ></v-checkbox>
+
+              <a
+                @click.stop="show_howto = true"
+                href="#how-to-get-a-personal-access-token"
+                >How do I create a personal access token?
+              </a>
+
+              <div style="height:1.5em"></div>
+
+              <v-menu
+                ref="dates"
+                v-model="show_date_picker"
+                :close-on-content-click="false"
+                :return-value.sync="date_range"
+                transition="scale-transition"
+                offset-y
+                min-width="auto"
+                >
+                <template v-slot:activator="{ on, attrs }">
+                  <v-text-field
+                    v-model="date_range_text"
+                    label="Date range"
+                    prepend-icon="mdi-calendar"
+                    readonly
+                    v-bind="attrs"
+                    v-on="on"
+                    dense hide-details
+                    ></v-text-field>
+                </template>
+                <v-date-picker
+                  v-model="date_range"
+                  no-title
+                  scrollable
+                  range
+                  >
+                  <v-spacer></v-spacer>
+                  <v-btn
+                    text
+                    color="primary"
+                    @click="show_date_picker = false"
+                    >
+                    Cancel
+                  </v-btn>
+                  <v-btn
+                    text
+                    color="primary"
+                    @click="save_values(); $refs.dates.save(date_range); date_range_text = date_range.join(' to ')"
+                    >
+                    OK
+                  </v-btn>
+                </v-date-picker>
+              </v-menu>
+
+              <div style="height:0.5em"></div>
+
+              <template v-for="{key,title} in sources">
+                <v-checkbox
+                  v-model="requests[key]"
+                  :label="'include '+title"
+                  dense hide-details
+                  @change="save_values"
+                  ></v-checkbox>
+              </template>
+
+              <div style="height:0.5em"></div>
+
+              <v-card-actions>
+                <v-btn
+                  style="width:100%"
+                  :loading="downloading"
+                  :disabled="download_disabled"
+                  color="primary"
+                  @click="download"
+                  >
+                  <v-icon>
+                    mdi-download
+                  </v-icon>
+                  Download
+                </v-btn>
+                <a ref="downloader" style="display:none"></a>
+
+                <v-dialog
+                  v-model="download_failed"
+                  max-width="400"
+                  >
+                  <v-card>
+                    <v-card-title>
+                      Download failed
+                    </v-card-title>
+
+                    <v-card-text>
+                      <template v-if="download_status==1">
+                        We could not download your data.<br/>
+                        You might need to make a new personal access token.
+                      </template>
+                      <template v-else>
+                        Some of your data failed to download.<br/>
+                        Try again later, or try including one item at a time.
+                      </template>
+                    </v-card-text>
+
+                    <v-card-actions>
+                      <v-btn
+                        color="primary"
+                        text
+                        @click="download_status = 0"
+                        style="width:100%"
+                        >
+                        OK
+                      </v-btn>
+                    </v-card-actions>
+                  </v-card>
+                </v-dialog>
+
+              </v-card-actions>
+
+            </v-card-text>
+
+            <v-expand-transition>
+              <v-card
+                v-if="show_howto"
+                class="transition-fast-in-fast-out v-card--reveal pa-3"
+                style="height: 100%;"
+                >
+                <v-card-title>Create a personal access token</v-card-title>
+                <v-card-text>
+                  <p>A personal access token is a type of password that gives us limited access to your account.  Here's how to make one:</p>
+
+                  <!-- based on https://cloud.ouraring.com/docs/authentication#personal-access-tokens -->
+                  <ol>
+                    <li>Open <a target="_blank" href="https://cloud.ouraring.com/personal-access-tokens">your Personal Access Token page</a><br/></li>
+                    <li>In the upper-right corner of the page, click<br/> <em>Create A New Personal Access Token</em></li>
+                    <li>Enter a unique note, such as<br/> <em>For the API Downloader</em>
+                    <li>Click <em>Create Personal Access Token</em>
+                    <li>Click <em>Copy</em></li>
+                    <li>Back in this tab, paste the token into the box marked <em>Personal Access Token</em></li>
+                  </ol>
+
+                </v-card-text>
+                <v-card-actions>
+                  <v-btn
+                    style="width:100%"
+                    color="primary"
+                    @click="show_howto = false"
+                    >
+                    <v-icon
+                      left
+                      >
+                      mdi-close
+                    </v-icon>
+                    Close
+                  </v-btn>
+                </v-card-actions>
+              </v-card>
+            </v-expand-transition>
+          </v-card>
+
+        </v-main>
+      </v-app>
+    </div>
+
+    <script src="https://cdn.jsdelivr.net/npm/vue@2.x/dist/vue.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/vuetify@2.x/dist/vuetify.js"></script>
+    <script>
+      var base_date = Date.now() - (new Date()).getTimezoneOffset() * 60000;
+      new Vue({
+          el: '#app',
+          vuetify: new Vuetify(),
+          data: () => ({
+              show_token: false,
+              token: '',
+              remember_token: false,
+              date_range: [
+                  new Date(base_date - 1000*60*60*24*7).toISOString().substr(0, 10),
+                  new Date(base_date                  ).toISOString().substr(0, 10),
+              ],
+              date_range_text: '',
+              show_date_picker: false,
+              download_status: 0,
+
+              requests: {
+                  sleep: true,
+                  activity: true,
+                  readiness: true,
+                  bedtime: true,
+                  userinfo: false,
+              },
+              sources: [
+                  { key: 'sleep'    , title: 'sleep logs' },
+                  { key: 'activity' , title: 'activity summaries' },
+                  { key: 'readiness', title: 'readiness summaries' },
+                  { key: 'bedtime'  , title: 'ideal bedtimes' },
+                  { key: 'userinfo' , title: 'user information' },
+              ],
+
+              show_howto: false,
+              downloading: false,
+          }),
+          mounted() {
+              var saved = JSON.parse( localStorage.getItem('api-downloader') || '{"requests":{}}' );
+              [ 'token', 'remember_token', 'date_range' ].forEach(
+                  key => Vue.set( this, key, saved[key] || this[key] )
+              );
+              this.date_range_text = this.date_range.join(' to ');
+              Object.keys(this.requests).forEach(
+                  key => Vue.set( this.requests, key, saved.requests.hasOwnProperty(key) ? saved.requests[key] : this.requests[key] )
+              );
+          },
+          methods: {
+              save_values() {
+                  localStorage.setItem(
+                      'api-downloader',
+                      JSON.stringify({
+                          token: this.remember_token ? this.token : '',
+                          remember_token: this.remember_token,
+                          date_range: this.date_range,
+                          requests: this.requests,
+                      })
+                  );
+              },
+              download() {
+                  /*
+                    For more information about Oura's API, see https://cloud.ouraring.com/docs/
+
+                    This page uses Oura's deprecated V1 API, because not all functionality
+                    is available in the V2 API yet (as of March 2022).
+                  */
+                  this.downloading = true;
+                  var keys = Object.keys(this.requests);
+                  Promise
+                      .allSettled(
+                          keys
+                              .filter( key => this.requests[key] )
+                              .map( key => fetch('https://api.ouraring.com/v1/' + key + '?access_token='+this.token + '&start=' + this.date_range[0] + '&end='+this.date_range[1] ) )
+                      )
+                      .then( results => {
+                          this.downloading = false;
+                          var failures = 0, text_promises = [];
+                          results.forEach( (result,n) => {
+                              if ( result.value.ok ) {
+                                  text_promises.push(r.value.text());
+                              } else {
+                                  failures = 1;
+                              }
+                          });
+                          if ( failures ) {
+                              if ( text_promises.length ) { // partial success - impossible?
+                                  this.download_status = 2;
+                              } else { // all failed - probably a bad key
+                                  this.download_status = 1;
+                              }
+                          } else { // all succeded - return values
+                              Promise
+                                  .allSettled( text_promises )
+                                  .then( texts => {
+                                      var a = this.$refs.downloader;
+                                      a.href = URL.createObjectURL(
+                                          new Blob(
+                                              ['{"format":"https://sleepdiary.github.io/api-downloader/","api":"https://api.ouraring.com/v1","data":{'
+                                               + keys.map( (k,n) => '"'+k+'":'+texts[n].value ).join(',')
+                                               +'}}'
+                                              ],
+                                              {type : 'application/json'}
+                                          )
+                                      );
+                                      a.download = 'oura_'+this.date_range.join('_')+'.json';
+                                      a.click();
+                                  });
+                          }
+                      });
+              },
+          },
+          computed: {
+              download_disabled() {
+                  return (
+                      this.downloading
+                      || !this.token
+                      || !Object.keys(this.requests).filter( key => this.requests[key] ).length
+                  );
+              },
+              download_failed() {
+                  return this.download_status != 0;
+              }
+          },
+      });
+    </script>
+
+  </body>
+</html>
